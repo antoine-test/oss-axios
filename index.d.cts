@@ -528,6 +528,13 @@ declare namespace axios {
 
   type LookupAddress = string | LookupAddressEntry;
 
+  interface RetryConfig {
+    retries?: number;
+    retryDelay?: number | ((attempt: number, error: any) => number);
+    retryCondition?: (error: any) => boolean;
+    onRetry?: (attempt: number, error: any, config: any) => void;
+  }
+
   interface AxiosRequestConfig<D = any, P = any> {
     url?: string;
     method?: Method | string;
@@ -572,6 +579,7 @@ declare namespace axios {
     decompress?: boolean;
     transitional?: TransitionalOptions;
     signal?: GenericAbortSignal;
+    retry?: RetryConfig | number | boolean;
     insecureHTTPParser?: boolean;
     env?: {
       FormData?: new (...args: any[]) => object;
@@ -797,6 +805,10 @@ declare namespace axios {
       config1: AxiosRequestConfig<D, P>,
       config2: AxiosRequestConfig<D, P>
     ): AxiosRequestConfig<D, P>;
+    retry<T = any, R = AxiosResponseDefault, D = any, P = any>(
+      config: AxiosRequestConfig<D, P>,
+      retries?: number
+    ): Promise<AxiosResponseResult<T, R, D, P>>;
   }
 }
 
