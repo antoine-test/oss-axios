@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import InterceptorManager from '../../../lib/core/InterceptorManager.js';
 
 describe('core::InterceptorManager', () => {
@@ -285,5 +285,44 @@ describe('core::InterceptorManager', () => {
       manager.forEach((h) => visited.push(h.fulfilled));
       expect(visited).toEqual([fulfilled]);
     });
+  });
+});
+
+describe('core::InterceptorManager extensions', () => {
+  it('useOnce should remove the handler after the first call', () => {
+    const manager = new InterceptorManager();
+    const spy = vi.fn((value) => value);
+
+    manager.useOnce(spy);
+    manager.forEach((handler) => handler.fulfilled(1));
+    manager.forEach((handler) => handler.fulfilled(2));
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(manager.handlers).toHaveLength(0);
+  });
+
+  it('useOnce should pass the value through without a fulfilled handler', () => {
+    const manager = new InterceptorManager();
+    let result;
+
+    manager.useOnce(undefined, () => {});
+    manager.forEach((handler) => {
+      result = handler.fulfilled('value');
+    });
+
+    expect(result).toBe('value');
+  });
+
+  it('ejectWhere should remove the matching handlers', () => {
+    const manager = new InterceptorManager();
+    const keep = () => {};
+
+    manager.use(keep);
+    manager.use(() => {});
+    manager.use(() => {});
+
+    expect(manager.ejectWhere((handler) => handler.fulfilled !== keep)).toBe(2);
+    expect(manager.handlers).toHaveLength(1);
+    expect(manager.handlers[0].fulfilled).toBe(keep);
   });
 });
