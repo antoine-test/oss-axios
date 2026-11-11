@@ -820,6 +820,10 @@ export interface AxiosStatic extends AxiosInstance {
   CanceledError: typeof CanceledError;
   AxiosHeaders: typeof AxiosHeaders;
   mergeConfig: typeof mergeConfig;
+  retry: <T = any, R = AxiosResponseDefault, D = any, P = any>(
+    config: AxiosRequestConfig<D, P>,
+    retries?: number
+  ) => Promise<AxiosResponseResult<T, R, D, P>>;
 }
 
 declare const axios: AxiosStatic;
