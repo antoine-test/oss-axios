@@ -397,6 +397,13 @@ export interface LookupAddressEntry {
 
 export type LookupAddress = string | LookupAddressEntry;
 
+export interface RetryConfig {
+  retries?: number;
+  retryDelay?: number | ((attempt: number, error: any) => number);
+  retryCondition?: (error: any) => boolean;
+  onRetry?: (attempt: number, error: any, config: any) => void;
+}
+
 export interface AxiosRequestConfig<D = any, P = any> {
   url?: string;
   method?: StringLiteralsOrString<Method>;
@@ -448,6 +455,7 @@ export interface AxiosRequestConfig<D = any, P = any> {
   decompress?: boolean;
   transitional?: TransitionalOptions;
   signal?: GenericAbortSignal;
+  retry?: RetryConfig | number | boolean;
   insecureHTTPParser?: boolean;
   env?: {
     FormData?: new (...args: any[]) => object;
