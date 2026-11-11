@@ -1,0 +1,185 @@
+# Manejo de errores
+
+axios puede lanzar muchos tipos diferentes de errores. Algunos de estos errores son causados por el propio axios, mientras que otros son causados por el servidor o el cliente. La siguiente tabla lista la estructura general del error lanzado:
+
+| Propiedad | Definición                                                                                                                                                                                                                                            |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| message   | Un resumen rápido del mensaje de error y el estado con el que falló.                                                                                                                                                                                  |
+| name      | Nombre del error: normalmente `AxiosError`, `CanceledError` para cancelaciones o el nombre original de un error encapsulado. Use `axios.isAxiosError(error)` para identificar errores de Axios y `axios.isCancel(error)` para detectar cancelaciones. |
+| stack     | Proporciona el seguimiento de la pila (stack trace) del error.                                                                                                                                                                                        |
+| config    | Un objeto de configuración de axios con configuraciones específicas de la instancia definidas por el usuario al momento de realizar la solicitud.                                                                                                     |
+| code      | Representa un error identificado por axios. La tabla a continuación lista definiciones específicas para errores internos de axios.                                                                                                                    |
+| status    | Código de estado HTTP de la respuesta. Consulta [aquí](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes) para conocer los significados comunes de los códigos de estado HTTP.                                                                  |
+
+A continuación se lista una relación de posibles errores identificados por axios:
+
+| Código                    | Definición                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| ERR_BAD_OPTION_VALUE      | Valor inválido o no compatible proporcionado en la configuración de axios.                    |
+| ERR_BAD_OPTION            | Opción inválida proporcionada en la configuración de axios.                                   |
+| ECONNABORTED              | Generalmente indica que la solicitud ha expirado (salvo que `transitional.clarifyTimeoutError` esté activado) o fue abortada por el navegador o un complemento del mismo. |
+| ETIMEDOUT                 | La solicitud expiró al superar el límite de tiempo predeterminado de axios. Se debe activar `transitional.clarifyTimeoutError` en `true`, de lo contrario se lanzará un error genérico `ECONNABORTED`. |
+| ECONNREFUSED              | El servidor rechazó la conexión. Lo establece el adaptador `http` de Node.js, con el error original del sistema en `error.cause`; los adaptadores `xhr` y `fetch` informan `ERR_NETWORK` en su lugar. |
+| ERR_NETWORK               | Problema relacionado con la red. En el navegador, este error también puede ser causado por una violación de la política [CORS](https://developer.mozilla.org/ru/docs/Web/HTTP/Guides/CORS) o [Mixed Content](https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content). El navegador no permite que el código JS aclare la razón real del error por motivos de seguridad; por eso, revisa la consola. |
+| ERR_FR_TOO_MANY_REDIRECTS | La solicitud fue redirigida demasiadas veces; supera el número máximo de redirecciones especificado en la configuración de axios. |
+| ERR_DEPRECATED            | Se usó una característica o método obsoleto en axios.                                         |
+| ERR_BAD_RESPONSE          | La respuesta no puede ser analizada correctamente o tiene un formato inesperado. Generalmente relacionado con una respuesta con código de estado `5xx`. |
+| ERR_BAD_REQUEST           | La solicitud tiene un formato inesperado o le faltan parámetros requeridos. Generalmente relacionado con una respuesta con código de estado `4xx`. |
+| ERR_CANCELED              | La característica o método fue cancelado explícitamente por el usuario usando un AbortSignal (o un CancelToken). |
+| ERR_NOT_SUPPORT           | Característica o método no compatible en el entorno actual de axios.                          |
+| ERR_INVALID_URL           | URL inválida proporcionada para la solicitud de axios.                                        |
+| ERR_FORM_DATA_DEPTH_EXCEEDED | Un objeto excede el `maxDepth` configurado al serializar `params` o datos de formulario. El límite predeterminado es de 100 niveles. Convertir FormData a JSON, con `axios.formToJSON()` o al enviar un `FormData` conforme a la especificación (con un método `entries()`) o un formulario HTML con `Content-Type: application/json`, tiene un límite fijo de 100 niveles que `maxDepth` no modifica. Consulta [`paramsSerializer`](/es/pages/advanced/request-config#paramsserializer) y [`formSerializer`](/es/pages/advanced/request-config#formserializer). |
+
+## Manejo de errores
+
+El comportamiento predeterminado de axios es rechazar la Promise si la solicitud falla. Sin embargo, también puedes capturar el error y manejarlo según lo consideres apropiado. A continuación se muestra un ejemplo de cómo capturar un error:
+
+```js
+axios.get("/user/12345").catch(function (error) {
+  if (error.response) {
+    // The request was made and the server responded with a status code
+    // that falls out of the range of 2xx
+    console.log(error.response.data);
+    console.log(error.response.status);
+    console.log(error.response.headers);
+  } else if (error.request) {
+    // The request was made but no response was received
+    // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+    // http.ClientRequest in node.js
+    console.log(error.request);
+  } else {
+    // Something happened in setting up the request that triggered an Error
+    console.log("Error", error.message);
+  }
+  console.log(error.config);
+});
+```
+
+## URLs HTTP(S) malformadas
+
+axios rechaza una `url` o `baseURL` de solicitud `http:` o `https:` que omita `//` después del protocolo. Por ejemplo, `https:example.com` y `https:/example.com` se rechazan con un `AxiosError` cuyo código es `ERR_INVALID_URL`, en lugar de ser normalizadas silenciosamente por el analizador de URL del navegador o de Node.js. Usa una URL bien formada como `https://example.com`.
+
+El mensaje identifica la URL incorrecta, por ejemplo:
+
+```text
+Invalid URL "https:example.com": missing "//" after protocol
+```
+
+Este comportamiento impide que las URL malformadas eludan `baseURL` o las listas de direcciones permitidas. La URL incluida en el mensaje se normaliza eliminando caracteres de control y oculta las credenciales, los valores de parámetros de consulta y el contenido del fragmento. Conserva el esquema, host, ruta y nombres de parámetros para que la solicitud siga siendo identificable. Esta ocultación del mensaje es incondicional porque `AxiosError.message` siempre forma parte de `toJSON()`; la opción `redact` de la configuración no puede limpiar un mensaje ya creado.
+
+Usando la opción de configuración `validateStatus`, puedes sobreescribir la condición predeterminada (status >= 200 && status < 300) y definir los códigos HTTP que deben lanzar un error.
+
+```js
+axios.get("/user/12345", {
+  validateStatus: function (status) {
+    return status < 500; // Resolve only if the status code is less than 500
+  },
+});
+```
+
+Usando el método `toJSON`, puedes obtener un objeto con más información sobre el error.
+
+```js
+axios.get("/user/12345").catch(function (error) {
+  console.log(error.toJSON());
+});
+```
+
+Para evitar registrar secretos desde `error.config`, pasa un arreglo `redact` en la configuración de la solicitud. Las claves de configuración coincidentes se enmascaran de forma insensible a mayúsculas/minúsculas a cualquier profundidad cuando se llama a `AxiosError#toJSON()`. Los objetos que no son objetos planos ni `AxiosHeaders` y tienen un método `toJSON()`, como los objetos `URL`, se serializan tal cual y no se examinan, y las credenciales dentro de cadenas de URL no se detectan. Incluye la clave padre, como `auth` o `proxy`, para enmascarar el valor completo.
+
+```js
+axios.get("/user/12345", {
+  headers: { Authorization: "Bearer token" },
+  redact: ["authorization"]
+}).catch(function (error) {
+  console.log(error.toJSON().config.headers.Authorization); // [REDACTED ****]
+});
+```
+
+## Duración de la respuesta en errores
+
+Cuando un error incluye una respuesta, como un estado distinto de 2xx rechazado por `validateStatus`, `error.response.duration` contiene el tiempo transcurrido del adaptador en milisegundos. No todos los errores tienen una respuesta: los errores de red, los tiempos de espera agotados y las cancelaciones no tienen `error.response` y, por tanto, tampoco duración. Comprueba que exista una respuesta antes de leerla:
+
+```js
+try {
+  await axios.get('/users');
+} catch (error) {
+  if (axios.isAxiosError(error) && error.response) {
+    console.log(error.response.status, error.response.duration);
+  }
+}
+```
+
+Los fallos de análisis JSON estricto conservan la duración en la respuesta adjunta al error. Consulta [Duración de la respuesta](/es/pages/advanced/response-schema#duracion-de-la-respuesta) para saber qué mide el valor.
+
+## Pilas de errores envueltos
+
+Cuando axios envuelve un error de más bajo nivel, como un fallo de socket o de DNS de Node.js, el error original sigue disponible como `error.cause`. El `error.stack` del contenedor también incluye la pila del error envuelto después de una línea `Caused by:`, de modo que los sistemas de reporte de errores que solo leen `stack` pueden ver el fallo subyacente. Primero aparecen los marcos de axios y los marcos reconstruidos del llamador, seguidos de la pila envuelta tal cual:
+
+```text
+Error: getaddrinfo ENOTFOUND api.example.invalid
+    at AxiosError.from (.../axios/lib/core/AxiosError.js)
+    ...
+    at Axios.request (.../axios/lib/core/Axios.js)
+    at async loadUser (/app/users.js:4:5)
+Caused by: Error: getaddrinfo ENOTFOUND api.example.invalid
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:...)
+```
+
+Usa `error.cause` para el acceso programático; es el mismo objeto de error original:
+
+```js
+try {
+  await axios.get('https://api.example.invalid/users');
+} catch (error) {
+  if (axios.isAxiosError(error) && error.cause) {
+    console.log(error.cause.code); // p. ej. 'ENOTFOUND'
+  }
+}
+```
+
+Ten en cuenta lo siguiente:
+
+- `error.toJSON().stack` también devuelve la cadena combinada. Es una salida de diagnóstico literal: `redact` no limpia las cadenas de pila.
+- Las herramientas que ya muestran `error.cause` pueden mostrar parte del contenido de la pila dos veces.
+- Solo los errores envueltos mediante `AxiosError.from()` cuya causa tiene una pila utilizable obtienen una sección. Las pilas ausentes, vacías o ilegibles se omiten.
+- Envolver un error ya envuelto añade otra sección anidada cada vez, por lo que la cadena crece con cada envoltura.
+- Un `stack` pasado en el argumento `customProps` de `AxiosError.from()` sigue reemplazando la pila generada.
+- El marcador `Caused by:` es texto de diagnóstico, no un formato estable que se pueda analizar.
+- Envolver no puede recuperar detalles que la plataforma nunca proporcionó. Por ejemplo, un `Network Error` de XHR en el navegador generalmente no tiene una pila de error subyacente, por lo que las causas ocultas de CORS, DNS o TLS siguen sin estar disponibles.
+
+## Manejo de tiempos de espera
+
+Cuando una solicitud excede su `timeout` configurado, axios rechaza con `ECONNABORTED` por defecto. Establece `transitional.clarifyTimeoutError: true` para recibir `ETIMEDOUT` en su lugar, lo que facilita distinguir los errores de tiempo de espera de otros abortos.
+
+```js
+async function fetchWithTimeout() {
+  try {
+    const response = await axios.get("https://example.com/data", {
+      timeout: 5000, // 5 segundos
+      transitional: {
+        // establecer en true si prefieres ETIMEDOUT en lugar de ECONNABORTED
+        clarifyTimeoutError: true,
+      },
+    });
+
+    console.log("Response:", response.data);
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+        console.error("Request timed out. Please try again.");
+        return;
+      }
+
+      console.error("Axios error:", error.message);
+      return;
+    }
+
+    console.error("Unexpected error:", error);
+  }
+}
+```
+
+::: tip Establece siempre un `timeout` en producción
+Sin uno, una solicitud detenida puede colgarse indefinidamente. Consulta [`timeout`](/es/pages/advanced/request-config#timeout) y [`transitional.clarifyTimeoutError`](/es/pages/advanced/request-config#transitional) para las opciones de configuración correspondientes.
+:::
