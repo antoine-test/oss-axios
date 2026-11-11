@@ -11,7 +11,7 @@ describe('helpers::deprecatedMethod', () => {
     warn.mockRestore();
   });
 
-  it.only('should suggest the alternative method', () => {
+  it('should suggest the alternative method', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     deprecatedMethod('foo', 'bar');
@@ -25,6 +25,15 @@ describe('helpers::deprecatedMethod', () => {
 
     deprecatedMethod('foo', 'bar', 'https://axios-http.com/docs');
 
+    warn.mockRestore();
+  });
+
+  it.skip('should not throw when console.warn throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+      throw new Error('no console');
+    });
+
+    expect(() => deprecatedMethod('foo')).not.toThrow();
     warn.mockRestore();
   });
 });
